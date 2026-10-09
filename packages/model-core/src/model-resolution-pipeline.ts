@@ -2,6 +2,7 @@ import { fuzzyMatchModel } from "./model-availability"
 import type { FallbackEntry } from "./model-requirements"
 import { transformModelForProvider } from "./provider-model-id-transform"
 import { normalizeModel } from "./model-normalization"
+import { parseModelString } from "./model-string-parser"
 import type { ProviderCache } from "./provider-cache"
 
 type LogImplementation = (message: string, data?: unknown) => void
@@ -118,15 +119,24 @@ export function resolveModelPipeline(
 
   const normalizedUserModel = normalizeModel(intent?.userModel)
   if (normalizedUserModel) {
-    const inheritedVariant = findFallbackVariantForModel(
-      normalizedUserModel,
-      fallbackChain,
-      deps.transformModelForProvider,
-    )
+    // Split the `:level` reasoning suffix the same way the task() path does,
+    // so the host receives a clean model ID plus a separate variant.
+    const parsed = parseModelString(normalizedUserModel)
+    if (parsed) {
+      const model = `${parsed.providerID}/${parsed.modelID}`
+      const inheritedVariant = findFallbackVariantForModel(
+        model,
+        fallbackChain,
+        deps.transformModelForProvider,
+      )
+      const variant = parsed.variant ?? inheritedVariant
+      log("Model resolved via config override", { model, variant })
+      return variant
+        ? { model, provenance: "override", variant }
+        : { model, provenance: "override" }
+    }
     log("Model resolved via config override", { model: normalizedUserModel })
-    return inheritedVariant
-      ? { model: normalizedUserModel, provenance: "override", variant: inheritedVariant }
-      : { model: normalizedUserModel, provenance: "override" }
+    return { model: normalizedUserModel, provenance: "override" }
   }
 
   const normalizedCategoryDefault = normalizeModel(intent?.categoryDefaultModel)

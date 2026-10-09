@@ -119,3 +119,129 @@ test("inherits the fallback variant for an explicit transformed gateway model", 
 	expect(result?.provenance).toBe("override")
 	expect(variant).toBe("high")
 })
+
+describe("reasoning suffix on explicit user model override", () => {
+	test("splits the :level suffix into a separate variant", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol:medium",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+		})
+
+		// then
+		expect(result).toEqual({
+			model: "openai/gpt-5.6-sol",
+			provenance: "override",
+			variant: "medium",
+		})
+	})
+
+	test("leaves clean model ids untouched", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+		})
+
+		// then
+		expect(result).toEqual({ model: "openai/gpt-5.6-sol", provenance: "override" })
+	})
+
+	test("passes through non-reasoning suffixes unchanged", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol:custom",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+		})
+
+		// then
+		expect(result).toEqual({ model: "openai/gpt-5.6-sol:custom", provenance: "override" })
+	})
+
+	test("explicit suffix takes precedence over the inherited fallback variant", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol:low",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+			policy: {
+				fallbackChain: [
+					{
+						providers: ["openai"],
+						model: "gpt-5.6-sol",
+						variant: "high",
+					},
+				],
+			},
+		})
+
+		// then
+		expect(result).toEqual({
+			model: "openai/gpt-5.6-sol",
+			provenance: "override",
+			variant: "low",
+		})
+	})
+
+	test("still inherits the fallback variant when no suffix is present", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+			policy: {
+				fallbackChain: [
+					{
+						providers: ["openai"],
+						model: "gpt-5.6-sol",
+						variant: "high",
+					},
+				],
+			},
+		})
+
+		// then
+		expect(result).toEqual({
+			model: "openai/gpt-5.6-sol",
+			provenance: "override",
+			variant: "high",
+		})
+	})
+
+	test("normalizes the parenthesized variant form", () => {
+		// given
+		const result = resolveModelPipeline({
+			intent: {
+				userModel: "openai/gpt-5.6-sol (medium)",
+			},
+			constraints: {
+				availableModels: new Set<string>(),
+			},
+		})
+
+		// then
+		expect(result).toEqual({
+			model: "openai/gpt-5.6-sol",
+			provenance: "override",
+			variant: "medium",
+		})
+	})
+})
